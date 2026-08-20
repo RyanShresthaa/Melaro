@@ -26,7 +26,7 @@ function toTimeValue(hour12, minute, period) {
   return `${String(hour).padStart(2, "0")}:${minute}`;
 }
 
-export function mountDatePicker(field, { input, trigger, panel, min = todayISO(), onChange, onOpen }) {
+export function mountDatePicker({ input, trigger, panel, min = todayISO(), onChange, onOpen }) {
   const valueEl = trigger.querySelector(".select-menu__value");
   const minDate = min;
   let view = minDate.slice(0, 7);
@@ -47,6 +47,13 @@ export function mountDatePicker(field, { input, trigger, panel, min = todayISO()
     trigger.setAttribute("aria-expanded", "false");
   }
 
+  function focusDay() {
+    const day =
+      panel.querySelector(".date-picker__day.is-selected:not(:disabled)") ||
+      panel.querySelector(".date-picker__day:not(:disabled)");
+    day?.focus();
+  }
+
   function open() {
     if (selected) view = selected.slice(0, 7);
     else view = minDate.slice(0, 7);
@@ -54,6 +61,7 @@ export function mountDatePicker(field, { input, trigger, panel, min = todayISO()
     panel.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     onOpen?.();
+    focusDay();
   }
 
   function renderPanel() {
@@ -115,6 +123,7 @@ export function mountDatePicker(field, { input, trigger, panel, min = todayISO()
       const next = new Date(year, month - 1 + shift, 1);
       view = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
       renderPanel();
+      focusDay();
       return;
     }
     const day = e.target.closest("[data-date]");
@@ -127,11 +136,25 @@ export function mountDatePicker(field, { input, trigger, panel, min = todayISO()
     trigger.focus();
   });
 
+  panel.addEventListener("keydown", (e) => {
+    const days = [...panel.querySelectorAll(".date-picker__day:not(:disabled)")];
+    const index = days.indexOf(document.activeElement);
+    if (index < 0) return;
+    let next = index;
+    if (e.key === "ArrowRight") next = Math.min(index + 1, days.length - 1);
+    else if (e.key === "ArrowLeft") next = Math.max(index - 1, 0);
+    else if (e.key === "ArrowDown") next = Math.min(index + 7, days.length - 1);
+    else if (e.key === "ArrowUp") next = Math.max(index - 7, 0);
+    else return;
+    e.preventDefault();
+    days[next]?.focus();
+  });
+
   setLabel();
   return { open, close, isOpen: () => trigger.getAttribute("aria-expanded") === "true" };
 }
 
-export function mountTimePicker(field, { input, trigger, panel, onChange, onOpen }) {
+export function mountTimePicker({ input, trigger, panel, onChange, onOpen }) {
   const valueEl = trigger.querySelector(".select-menu__value");
   let { hour12, minute, period } = parseTime(input.value);
 
@@ -194,16 +217,20 @@ export function mountTimePicker(field, { input, trigger, panel, onChange, onOpen
         </div>
       </div>
     `;
-    panel.querySelector(".time-picker__col .is-selected")?.scrollIntoView({ block: "nearest" });
+    panel.querySelectorAll(".time-picker__col").forEach((col) => {
+      const selectedOpt = col.querySelector(".is-selected");
+      if (!selectedOpt) return;
+      col.scrollTop = Math.max(0, selectedOpt.offsetTop - col.clientHeight / 2 + selectedOpt.clientHeight / 2);
+    });
   }
 
   function open() {
     ({ hour12, minute, period } = parseTime(input.value || "06:30"));
-    if (!input.value) commit();
     renderPanel();
     panel.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     onOpen?.();
+    panel.querySelector(".time-picker__col .is-selected")?.focus();
   }
 
   trigger.addEventListener("click", (e) => {
@@ -230,6 +257,21 @@ export function mountTimePicker(field, { input, trigger, panel, onChange, onOpen
     else return;
     commit();
     renderPanel();
+    const attr = hourBtn ? "data-hour" : minuteBtn ? "data-minute" : "data-period";
+    const value = hourBtn ? String(hour12) : minuteBtn ? minute : period;
+    panel.querySelector(`[${attr}="${value}"]`)?.focus();
+  });
+
+  panel.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    const col = e.target.closest(".time-picker__col");
+    if (!col) return;
+    const options = [...col.querySelectorAll("button")];
+    const index = options.indexOf(document.activeElement);
+    if (index < 0) return;
+    e.preventDefault();
+    const next = e.key === "ArrowDown" ? Math.min(index + 1, options.length - 1) : Math.max(index - 1, 0);
+    options[next]?.focus();
   });
 
   setLabel();

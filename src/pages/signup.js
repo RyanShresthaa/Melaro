@@ -1,6 +1,6 @@
 import { signup } from "../state.js";
 import { navigate } from "../router.js";
-import { isValidEmail, showToast } from "../utils.js";
+import { isValidEmail, showToast, setNamedError, clearFieldError } from "../utils.js";
 import { icons } from "../components.js";
 
 export function renderSignup(container) {
@@ -75,32 +75,35 @@ export function renderSignup(container) {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const fields = ["fullName", "username", "email", "password", "confirmPassword"];
-    fields.forEach((name) => clearError(container.querySelector(`#field-${name}`)));
+    fields.forEach((name) => clearFieldError(container.querySelector(`#field-${name}`)));
 
     const values = Object.fromEntries(fields.map((name) => [name, form[name].value.trim()]));
     let hasError = false;
 
     if (values.fullName.length < 2) {
-      setError(container, "fullName", "Enter your full name.");
+      setNamedError(container, "fullName", "Enter your full name.");
       hasError = true;
     }
     if (!/^[a-z0-9_.]{3,20}$/i.test(values.username)) {
-      setError(container, "username", "3-20 characters: letters, numbers, underscore or dot.");
+      setNamedError(container, "username", "3-20 characters: letters, numbers, underscore or dot.");
       hasError = true;
     }
     if (!isValidEmail(values.email)) {
-      setError(container, "email", "Enter a valid email address.");
+      setNamedError(container, "email", "Enter a valid email address.");
       hasError = true;
     }
     if (form.password.value.length < 6) {
-      setError(container, "password", "Password must be at least 6 characters.");
+      setNamedError(container, "password", "Password must be at least 6 characters.");
       hasError = true;
     }
     if (form.confirmPassword.value !== form.password.value) {
-      setError(container, "confirmPassword", "Passwords do not match.");
+      setNamedError(container, "confirmPassword", "Passwords do not match.");
       hasError = true;
     }
-    if (hasError) return;
+    if (hasError) {
+      container.querySelector(".has-error input")?.focus();
+      return;
+    }
 
     const result = signup({
       fullName: values.fullName,
@@ -110,22 +113,13 @@ export function renderSignup(container) {
     });
 
     if (!result.ok) {
-      if (result.error === "username-taken") setError(container, "username", "That username is already taken.");
-      if (result.error === "email-taken") setError(container, "email", "An account with that email already exists.");
+      if (result.error === "username-taken") setNamedError(container, "username", "That username is already taken.");
+      if (result.error === "email-taken") setNamedError(container, "email", "An account with that email already exists.");
+      container.querySelector(".has-error input")?.focus();
       return;
     }
 
     showToast("Account created");
     navigate("preferences");
   });
-}
-
-function setError(container, name, message) {
-  const field = container.querySelector(`#field-${name}`);
-  field.classList.add("has-error");
-  field.querySelector(".field-error").textContent = message;
-}
-function clearError(field) {
-  field.classList.remove("has-error");
-  field.querySelector(".field-error").textContent = "";
 }

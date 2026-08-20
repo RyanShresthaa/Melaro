@@ -17,22 +17,26 @@ To wipe local demo data and start over, run this in the browser console:
 melaroResetDemo()
 ```
 
-Login, joins, chat, feed posts, and created events are simulated in JavaScript. They persist across refresh via `localStorage` (`melaro_state_v1`).
+It clears stored demo data and reloads the login screen.
+
+Login, joins, chat, feed posts, follows, notifications, and created events are simulated in JavaScript. They persist across refresh via `localStorage` (`melaro_state_v1`).
+
+The demo account is already joined to **ARC - 52** (chat + feed). Other events still show Join. The seed private event is **Founders & Builders Mixer** — it is not on Home; open `#/event/evt_founders_mixer`.
 
 ## Features
 
 - Login, signup, and interest preferences
-- Home feed with trending events and an upcoming list
+- Home feed with trending events, a **For you** chip, and preferred categories listed first
 - Search, plus category chips
-- Event details — join, then chat + feed; leave (hosts cannot leave their own event)
+- Event details — join, copy link, attendee profiles, then chat + feed; leave (hosts cannot leave their own event)
 - Create event (optional cover image, date/time, location, public/private, category)
+- Private events stay off Home/Search unless you host or already joined; cards show a Private badge
 - My Schedule — only events you joined or host
-- Profile with past / hosted tabs and edit name + bio
+- Profile with full name + handle, follower/following lists, past / hosted tabs, **View Highlight** of hosted events, edit name + bio, and follow/unfollow
+- Local notifications (join + follow) with an unread badge on the Home bell
 - Bottom navigation across the main screens
 - Responsive layout from ~320px through desktop
-- Demo state survives navigation and refresh
-
-Follow is shown on other profiles, and View Highlight on your own profile. Both are visible but disabled — they are not implemented.
+- Demo state survives navigation and refresh, and re-renders if another tab updates `localStorage`
 
 ## Tech stack
 
@@ -73,7 +77,7 @@ melaro/
 │   ├── app.js                 register routes, start router
 │   ├── router.js              hash routes + auth guards
 │   ├── state.js               the only module that reads/writes storage
-│   ├── data.js                seed users, events, chat, posts
+│   ├── data.js                seed users, events, chat, posts, notifications
 │   ├── components.js          cards, avatars, icons, nav markup
 │   ├── pickers.js             custom date and time menus (create event)
 │   ├── utils.js               dates, toasts, focus trap, confirm modal
@@ -93,15 +97,15 @@ The brief asked for HTML, CSS, and JavaScript. A framework would add a build ste
 
 ### Hash router
 
-Routes look like `#event/evt_arc52`. Refresh and static hosts (including GitHub Pages) keep working. `history.pushState` would 404 without server rewrite rules.
+Routes look like `#/event/evt_arc52`. Refresh and static hosts (including GitHub Pages) keep working. `history.pushState` would 404 without server rewrite rules.
 
-Logged-out users are sent to login. Logged-in users hitting login/signup go to home. The bottom nav is hidden on login, signup, and preferences because those routes are not in the visible-nav list. Saving preferences navigates to Home; a logged-in user can still open Home directly.
+Logged-out users are sent to login. Logged-in users hitting login/signup go to home — or to preferences if they have not picked any interests yet. Auth and preference redirects use `history.replaceState`, so the browser back button does not loop. Opening an event (or other app) link while logged out returns you there after login. The bottom nav is hidden on login, signup, and preferences because those routes are not in the visible-nav list. Saving preferences navigates to Home — or back to the link you were opening. If a signed-up user has empty preferences, any other route sends them back to preferences.
 
 ### Local state
 
-One object in `localStorage` under `melaro_state_v1` (shape version **3**): current user, users, events, joins, messages, posts, and search/category filters.
+One object in `localStorage` under `melaro_state_v1` (shape version **6**): current user, users, events, joins, messages, posts, notifications, follows, and search/category filters. Search/category filters reset on logout so they do not leak between accounts. Return-to-link and in-app Back flags live in `sessionStorage`.
 
-`state.js` is the only read/write layer. If this later grew a backend, pages would keep calling the same functions and `state.js` would talk to an API instead of `localStorage`.
+`state.js` is the only module that reads or writes `localStorage`. A `storage` listener reloads that object when another tab writes the same key, then the current screen re-renders. If this later grew a backend, pages would keep calling the same functions and `state.js` would talk to an API instead of `localStorage`.
 
 ### Full re-renders
 
@@ -120,29 +124,29 @@ Mobile-first to match the ~390px screenshots, but not locked in a phone frame. C
 | Trending tiles like "Run Clubs / 128+ Events" | Real events; tap opens details | Those tiles had no destination |
 | "See All" + upcoming date picker | Omitted | Chips + search already filter |
 | Search / Calendar icons, no spec | Search is its own screen; Calendar is My Schedule | Otherwise those nav items do nothing |
-| Preferences screen shows bottom nav | Nav hidden on the preferences route | Preferences is excluded from visible nav; saving goes to Home, but the URL is not locked |
+| Preferences screen shows bottom nav | Nav hidden on that route; empty prefs redirect back here | Signup should not skip picking interests |
 | Edit Profile undescribed | Modal: name + bio | Not enough spec for a second screen |
-| View Highlight / Follow | Disabled (Highlight on own profile, Follow on others) | No highlight reel or follow graph |
-| Notification bell | Toast: "No new notifications" | No inbox |
+| View Highlight / Follow | Highlights of hosted events; Follow works on other profiles | Local reel + follow graph, not Instagram Stories |
+| Notification bell | Modal list with unread badge | Local only — join and follow write into `localStorage` |
 | Create button white on one mockup | Red, same as login/signup | One accent for CTAs |
 | Native date/time controls | Custom calendar + time menu | Windows dark-mode pickers were unreadable |
 
 ## Data & persistence
 
-Seed users, events, chat, and posts live in `data.js`. After first load, `state.js` clones them into `localStorage`.
+Seed users, events, chat, posts, and notifications live in `data.js`. After first load, `state.js` clones them into `localStorage`.
 
-Joins, messages, feed posts, created events, and profile edits survive refresh. Organizers count as joined. Schedule lists only events the current user joined or hosts — a new signup starts empty.
+Joins, messages, feed posts, created events, follows, notifications, and profile edits survive refresh. Organizers count as joined. The demo user is joined to ARC-52. Schedule lists only events the current user joined or hosts — a new signup starts empty.
 
-Preferences are stored on the user. They do not rank or hide events on Home. Home shows upcoming events only, with category filtering. Search with an empty query does the same. A non-empty search looks across all events, including past ones, still with category filtering.
+Preferences are stored on the user. On Home and Search, upcoming events in those categories are listed first when the chip is All Events or For you. Other events still show. Private events are omitted from Home and Search unless you host them or have already joined; the details URL still works. Unknown profile URLs show a not-found state instead of silently falling back to your own profile.
 
 ## Known limitations
 
 - Auth is simulated and local-only. It is not suitable for production.
-- Chat and feed are saved locally. They are not realtime and do not sync across browsers or tabs/windows — there is no `storage` event listener.
-- Private events show a badge. Join is not restricted.
-- Follower / following counts are static.
+- Chat, feed, and notifications are saved locally. They are not push or realtime; they do sync across tabs in the same browser via `localStorage`.
+- Private events are hidden from Home/Search, but anyone with the details link can still join.
+- In-app Back uses the browser history after you've moved around inside Melaro. If this tab was opened on a deep link, Back goes to Home instead of leaving the site.
+- View Highlight is a local reel of hosted events (or past events if you have not hosted yet), not a social-media story product.
 - Cover uploads are stored as data URLs, capped at 2MB, because of `localStorage` quota.
-- The Home list skeleton is cosmetic, not a real network load.
 
 ## Production next steps
 

@@ -1,6 +1,6 @@
 import { login } from "../state.js";
-import { navigate } from "../router.js";
-import { escapeHTML, showToast } from "../utils.js";
+import { navigate, consumeReturnPath } from "../router.js";
+import { showToast, setFieldError, clearFieldError } from "../utils.js";
 import { icons } from "../components.js";
 import { DEMO_USER } from "../data.js";
 
@@ -61,48 +61,43 @@ export function renderLogin(container) {
   container.querySelector("#use-demo").addEventListener("click", () => {
     form.identifier.value = DEMO_USER.username;
     form.password.value = DEMO_USER.password;
-    clearError(identifierField);
-    clearError(passwordField);
+    clearFieldError(identifierField);
+    clearFieldError(passwordField);
     form.identifier.focus();
   });
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    clearError(identifierField);
-    clearError(passwordField);
+    clearFieldError(identifierField);
+    clearFieldError(passwordField);
 
     const identifier = form.identifier.value.trim();
     const password = form.password.value;
 
     if (!identifier) {
-      setError(identifierField, "Enter your email or username.");
+      setFieldError(identifierField, "Enter your email or username.");
+      form.identifier.focus();
       return;
     }
     if (!password) {
-      setError(passwordField, "Enter your password.");
+      setFieldError(passwordField, "Enter your password.");
+      form.password.focus();
       return;
     }
 
     const result = login(identifier, password);
     if (!result.ok) {
       if (result.error === "no-account") {
-        setError(identifierField, "No Melaro account found with that email/username.");
+        setFieldError(identifierField, "No Melaro account found with that email/username.");
+        form.identifier.focus();
       } else {
-        setError(passwordField, "Incorrect password. Try again.");
+        setFieldError(passwordField, "Incorrect password. Try again.");
+        form.password.focus();
       }
       return;
     }
 
     showToast(`Welcome back, ${result.user.fullName.split(" ")[0]}`);
-    navigate("home");
+    navigate(result.user.preferences?.length ? consumeReturnPath("home") : "preferences");
   });
-}
-
-function setError(field, message) {
-  field.classList.add("has-error");
-  field.querySelector(".field-error").textContent = message;
-}
-function clearError(field) {
-  field.classList.remove("has-error");
-  field.querySelector(".field-error").textContent = "";
 }

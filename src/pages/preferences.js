@@ -1,5 +1,5 @@
 import { getCategories, getCurrentUser, savePreferences } from "../state.js";
-import { navigate } from "../router.js";
+import { navigate, consumeReturnPath } from "../router.js";
 import { escapeHTML, showToast } from "../utils.js";
 
 export function renderPreferences(container) {
@@ -56,7 +56,7 @@ export function renderPreferences(container) {
     if (selected.size === 0) return;
     savePreferences(Array.from(selected));
     showToast("Preferences saved");
-    navigate("home");
+    navigate(consumeReturnPath("home"));
   });
 
   refresh();

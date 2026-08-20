@@ -12,9 +12,9 @@ import {
   createPost,
   getCurrentUser,
 } from "../state.js";
-import { goBack } from "../router.js";
-import { escapeHTML, formatTime, formatDateWeekday, timeAgo, showToast, confirmDialog } from "../utils.js";
-import { icons, avatarHTML, coverImageHTML, emptyStateHTML, bindTabs } from "../components.js";
+import { goBack, navigate } from "../router.js";
+import { escapeHTML, formatTime, formatDateWeekday, timeAgo, showToast, confirmDialog, copyToClipboard } from "../utils.js";
+import { icons, avatarHTML, coverImageHTML, emptyStateHTML, bindTabs, openPeopleList } from "../components.js";
 
 export function renderEventDetails(container, { params }) {
   const eventId = params[0];
@@ -25,9 +25,9 @@ export function renderEventDetails(container, { params }) {
 
     if (!event) {
       container.innerHTML = `
-        <div class="page" style="padding:var(--space-6) var(--page-gutter)">
+        <div class="page page--status">
           ${emptyStateHTML({ title: "Event not found", body: "It may have been removed. Head back to explore other events." })}
-          <button type="button" class="btn btn-primary" data-route="home" style="margin-top:16px;">Back to Home</button>
+          <button type="button" class="btn btn-primary" data-route="home">Back to Home</button>
         </div>
       `;
       return;
@@ -52,13 +52,16 @@ export function renderEventDetails(container, { params }) {
             <span class="event-hero__scrim"></span>
             <div class="event-hero__top">
               <button type="button" class="event-hero__icon-btn" data-action="back" aria-label="Go back">${icons.back}</button>
-              <span class="badge badge-outline">${escapeHTML(event.type === "private" ? "Private" : "Public")}</span>
+              <div class="event-hero__top-end">
+                <span class="badge badge-outline">${escapeHTML(event.type === "private" ? "Private" : "Public")}</span>
+                <button type="button" class="event-hero__icon-btn" data-action="share" aria-label="Copy event link">${icons.share}</button>
+              </div>
             </div>
           </div>
 
           <div class="event-details__copy">
             <div class="event-info">
-              <span class="badge" style="margin-bottom:10px;display:inline-flex;">${escapeHTML(event.category)}</span>
+              <span class="badge event-info__category">${escapeHTML(event.category)}</span>
               <h1 class="event-info__title">${escapeHTML(event.title)}</h1>
 
               <button type="button" class="event-info__organizer" data-route="profile/${escapeHTML(event.organizer)}">
@@ -81,9 +84,19 @@ export function renderEventDetails(container, { params }) {
 
               <div class="event-attendees">
                 <div class="avatar-stack">
-                  ${attendees.slice(0, 4).map((a) => avatarHTML(a, 30)).join("")}
+                  ${attendees
+                    .slice(0, 4)
+                    .map(
+                      (a) => `
+                    <button type="button" class="avatar-link" data-route="profile/${escapeHTML(a.username)}" aria-label="${escapeHTML(a.fullName || a.username)}">
+                      ${avatarHTML(a, 30)}
+                    </button>`
+                    )
+                    .join("")}
                 </div>
-                <span class="event-attendees__count">${event.attendeeCount || attendees.length} going</span>
+                <button type="button" class="event-attendees__count" data-action="attendees">
+                  ${event.attendeeCount || attendees.length} going
+                </button>
               </div>
             </div>
 
@@ -92,7 +105,10 @@ export function renderEventDetails(container, { params }) {
 
             ${
               !joined
-                ? `<div class="event-cta"><button type="button" class="btn btn-primary" data-action="join">Join Event</button></div>`
+                ? `<div class="event-cta">
+                    ${event.type === "private" ? `<p class="field-hint event-private-hint">Private — this event is not listed on Home. Anyone with the link can still join in this demo.</p>` : ""}
+                    <button type="button" class="btn btn-primary" data-action="join">${event.type === "private" ? "Join Private Event" : "Join Event"}</button>
+                  </div>`
                 : ""
             }
           </div>
@@ -103,7 +119,32 @@ export function renderEventDetails(container, { params }) {
     `;
 
     container.querySelector('[data-action="back"]')?.addEventListener("click", () => goBack("home"));
-    container.querySelector('[data-action="join"]')?.addEventListener("click", () => {
+    container.querySelector('[data-action="share"]')?.addEventListener("click", async () => {
+      const url = `${location.origin}${location.pathname}${location.search}#/event/${event.id}`;
+      const copied = await copyToClipboard(url);
+      showToast(copied ? "Event link copied" : "Couldn't copy the link");
+    });
+    container.querySelector('[data-action="attendees"]')?.addEventListener("click", () => {
+      const listed = attendees.length;
+      const total = event.attendeeCount || listed;
+      openPeopleList({
+        title: "Going",
+        people: attendees,
+        empty: "No attendee profiles to show yet.",
+        hint: total > listed ? `${listed} of ${total} have profiles in this demo.` : "",
+        onSelect: (username) => navigate(`profile/${username}`),
+      });
+    });
+    container.querySelector('[data-action="join"]')?.addEventListener("click", async () => {
+      if (event.type === "private") {
+        const confirmed = await confirmDialog({
+          title: "Join this private event?",
+          body: "Private events stay off Home and Search. Anyone with the link can still join in this demo.",
+          confirmLabel: "Join",
+          danger: false,
+        });
+        if (!confirmed) return;
+      }
       joinEvent(eventId);
       showToast("Joined event");
       paint();
@@ -122,7 +163,7 @@ export function renderEventDetails(container, { params }) {
     });
 
     if (joined) {
-      wireJoinedArea(container, event, activeTab);
+      wireJoinedArea(container, event);
     }
   }
 
@@ -140,7 +181,7 @@ export function renderEventDetails(container, { params }) {
       ${
         !hosting
           ? `<div class="event-cta"><button type="button" class="btn btn-danger-outline" data-action="leave">Leave Event</button></div>`
-          : `<div class="event-cta"><p class="field-hint" style="text-align:center;">As the host, you can't leave your own event.</p></div>`
+          : `<div class="event-cta"><p class="field-hint">As the host, you can't leave your own event.</p></div>`
       }
     `;
   }
@@ -171,9 +212,11 @@ export function renderEventDetails(container, { params }) {
         }
       </div>
       <form class="chat-composer" id="chat-form">
-        <label class="sr-only" for="chat-input">Write a message</label>
-        <input class="input" id="chat-input" type="text" placeholder="Message the group…" autocomplete="off" />
-        <button type="submit" aria-label="Send message">${icons.send}</button>
+        <div class="chat-composer__row">
+          <label class="sr-only" for="chat-input">Write a message</label>
+          <input class="input" id="chat-input" type="text" placeholder="Message the group…" autocomplete="off" />
+          <button type="submit" aria-label="Send message">${icons.send}</button>
+        </div>
         <p class="chat-composer__hint" id="chat-hint" hidden>Write a message first.</p>
       </form>
     `;
@@ -216,7 +259,7 @@ export function renderEventDetails(container, { params }) {
     `;
   }
 
-  function wireJoinedArea(container, event, currentTab) {
+  function wireJoinedArea(container, event) {
     bindTabs(container.querySelector(".tabs"), {
       onChange(tab, { focus } = {}) {
         if (tab === activeTab) {

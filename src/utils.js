@@ -80,6 +80,28 @@ export function seededImage(seed, width = 800, height = 500) {
   return `https://picsum.photos/seed/${encodeURIComponent(seed)}/${width}/${height}`;
 }
 
+export function setFieldError(field, message) {
+  if (!field) return;
+  field.classList.add("has-error");
+  const err = field.querySelector(".field-error");
+  if (err) err.textContent = message || "";
+}
+
+export function clearFieldError(field) {
+  if (!field) return;
+  field.classList.remove("has-error");
+  const err = field.querySelector(".field-error");
+  if (err) err.textContent = "";
+}
+
+export function setNamedError(root, name, message) {
+  setFieldError(root.querySelector(`#field-${name}`), message);
+}
+
+export function clearNamedError(root, name) {
+  clearFieldError(root.querySelector(`#field-${name}`));
+}
+
 export function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -114,6 +136,24 @@ export function showToast(message) {
   }, 2200);
 }
 
+export async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+
 export function getFocusable(container) {
   return [...container.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")].filter(
     (node) => !node.disabled && node.getAttribute("aria-hidden") !== "true"
@@ -143,9 +183,15 @@ export function trapFocus(container, { onEscape } = {}) {
     }
   }
 
+  function onHash() {
+    onEscape?.();
+  }
+
   document.addEventListener("keydown", onKey);
+  window.addEventListener("hashchange", onHash);
   return () => {
     document.removeEventListener("keydown", onKey);
+    window.removeEventListener("hashchange", onHash);
     if (previouslyFocused && typeof previouslyFocused.focus === "function") {
       previouslyFocused.focus();
     }

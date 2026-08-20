@@ -1,4 +1,4 @@
-import { escapeHTML, seededImage, formatDate, formatTime, initials } from "./utils.js";
+import { escapeHTML, seededImage, formatDate, formatTime, timeAgo, initials, trapFocus } from "./utils.js";
 
 export const icons = {
   home: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>`,
@@ -15,8 +15,9 @@ export const icons = {
   send: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>`,
   x: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>`,
   camera: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 8h3l2-2h6l2 2h3v12H4z"/><circle cx="12" cy="14" r="3.5"/></svg>`,
-  chevronRight: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`,
+  share: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M12 3v13"/><path d="M8 7l4-4 4 4"/></svg>`,
   bell: `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 8a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 21a2 2 0 004 0"/></svg>`,
+  logout: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 7V5a2 2 0 012-2h7v18h-7a2 2 0 01-2-2v-2"/><path d="M15 12H3"/><path d="M6 9l-3 3 3 3"/></svg>`,
 };
 
 export function avatarHTML(user, size = 40) {
@@ -26,11 +27,9 @@ export function avatarHTML(user, size = 40) {
 
 export function coverImageHTML({ src, seed, alt, className = "" }) {
   const finalSrc = src || seededImage(seed, 800, 500);
-  const fallbackId = `img-${Math.random().toString(36).slice(2, 8)}`;
   return `
     <img src="${escapeHTML(finalSrc)}" alt="${escapeHTML(alt)}" loading="lazy"
-      class="${className}" data-fallback-id="${fallbackId}"
-      onerror="this.onerror=null;this.closest('[data-media]')?.classList.add('media--fallback');this.remove();" />
+      class="${className}" data-cover />
   `;
 }
 
@@ -44,6 +43,7 @@ export function eventCardHTML(event) {
       <div class="event-card__media" data-media data-fallback-letter="${escapeHTML(fallbackInitial(event.title))}">
         ${coverImageHTML({ src: event.cover?.startsWith?.("data:") ? event.cover : null, seed: event.coverSeed || event.cover || event.id, alt: `${event.title} cover image` })}
         <span class="badge event-card__badge">${escapeHTML(event.category)}</span>
+        ${event.type === "private" ? `<span class="badge badge-outline event-card__badge event-card__badge--private">Private</span>` : ""}
       </div>
       <div class="event-card__body">
         <p class="event-card__title">${escapeHTML(event.title)}</p>
@@ -58,7 +58,7 @@ export function eventCardHTML(event) {
 export function trendingCardHTML(event) {
   return `
     <button type="button" class="trending-card" data-route="event/${escapeHTML(event.id)}" aria-label="${escapeHTML(event.title)}">
-      <div data-media data-fallback-letter="${escapeHTML(fallbackInitial(event.title))}" style="position:absolute;inset:0;">
+      <div class="trending-card__media" data-media data-fallback-letter="${escapeHTML(fallbackInitial(event.title))}">
         ${coverImageHTML({ src: event.cover?.startsWith?.("data:") ? event.cover : null, seed: event.coverSeed || event.cover || event.id, alt: "" })}
       </div>
       <span class="trending-card__scrim"></span>
@@ -80,6 +80,7 @@ const NAV_ITEMS = [
 
 export function renderBottomNav(activeRoute) {
   const nav = document.getElementById("bottom-nav");
+  if (!nav) return;
   nav.innerHTML = NAV_ITEMS.map((item) => {
     const active = activeRoute === item.route;
     return `
@@ -95,22 +96,8 @@ export function renderBottomNav(activeRoute) {
 }
 
 export function showBottomNav(show) {
-  document.getElementById("bottom-nav").hidden = !show;
-}
-
-export function skeletonCards(count = 3) {
-  return Array.from({ length: count })
-    .map(
-      () => `
-      <div class="event-card" style="pointer-events:none;">
-        <div class="skeleton event-card__media"></div>
-        <div class="event-card__body">
-          <div class="skeleton" style="height:14px;width:70%;margin-bottom:8px;border-radius:4px;"></div>
-          <div class="skeleton" style="height:11px;width:45%;border-radius:4px;"></div>
-        </div>
-      </div>`
-    )
-    .join("");
+  const nav = document.getElementById("bottom-nav");
+  if (nav) nav.hidden = !show;
 }
 
 export function emptyStateHTML({ icon = "◌", title, body }) {
@@ -144,4 +131,222 @@ export function bindTabs(tablist, { onChange }) {
     e.preventDefault();
     onChange(tabs[next].getAttribute("data-tab"), { focus: true });
   });
+}
+
+export function openPeopleList({ title, people, empty, hint, onSelect }) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal-card modal-card--list" role="dialog" aria-modal="true" aria-labelledby="people-title">
+      <h3 id="people-title">${escapeHTML(title)}</h3>
+      <div class="people-list">
+        ${
+          people.length
+            ? people
+                .map(
+                  (person) => `
+            <button type="button" class="people-row" data-username="${escapeHTML(person.username)}">
+              ${avatarHTML(person, 40)}
+              <span class="people-row__text">
+                <strong>${escapeHTML(person.fullName || person.username)}</strong>
+                <span>@${escapeHTML(person.username)}</span>
+              </span>
+            </button>`
+                )
+                .join("")
+            : `<p class="field-hint">${escapeHTML(empty || "No one to show yet.")}</p>`
+        }
+      </div>
+      ${hint ? `<p class="field-hint">${escapeHTML(hint)}</p>` : ""}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="people-close">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.append(backdrop);
+  const card = backdrop.querySelector(".modal-card");
+  let restore = () => {};
+  function close() {
+    restore();
+    backdrop.remove();
+  }
+  restore = trapFocus(card, { onEscape: close });
+  backdrop.querySelector("#people-close").addEventListener("click", close);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+  backdrop.querySelectorAll("[data-username]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const username = btn.getAttribute("data-username");
+      close();
+      onSelect?.(username);
+    });
+  });
+  (backdrop.querySelector(".people-row") || backdrop.querySelector("#people-close")).focus();
+}
+
+export function openNotificationList({ items, onSelect }) {
+  const list = Array.isArray(items) ? items.filter((n) => n && n.text) : [];
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal-card modal-card--list" role="dialog" aria-modal="true" aria-labelledby="notify-title">
+      <h3 id="notify-title">Notifications</h3>
+      <div class="people-list">
+        ${
+          list.length
+            ? list
+                .map(
+                  (n) => `
+            <button type="button" class="people-row people-row--notify ${n.read ? "" : "is-unread"}" data-go="${escapeHTML(n.route || "")}">
+              <span class="people-row__text">
+                <strong>${escapeHTML(n.text)}</strong>
+                <span>${escapeHTML(n.ts ? timeAgo(n.ts) : "")}</span>
+              </span>
+            </button>`
+                )
+                .join("")
+            : `<p class="field-hint">No notifications yet.</p>`
+        }
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="notify-close">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.append(backdrop);
+  const card = backdrop.querySelector(".modal-card");
+  let restore = () => {};
+  function close() {
+    restore();
+    backdrop.remove();
+  }
+  restore = trapFocus(card, { onEscape: close });
+  backdrop.querySelector("#notify-close").addEventListener("click", close);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+  backdrop.querySelectorAll("[data-go]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const route = btn.getAttribute("data-go");
+      close();
+      if (route) onSelect?.(route);
+    });
+  });
+  (backdrop.querySelector(".people-row") || backdrop.querySelector("#notify-close")).focus();
+}
+
+export function openHighlightReel({ events, onSelect }) {
+  const slides = Array.isArray(events) ? events.filter((e) => e && e.id) : [];
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  let index = 0;
+
+  backdrop.innerHTML = `
+    <div class="modal-card modal-card--highlight${slides.length ? "" : " modal-card--highlight-empty"}" role="dialog" aria-modal="true" aria-labelledby="highlight-title">
+      ${
+        slides.length
+          ? `<div class="highlight-frame">
+               <button type="button" class="highlight-close" id="highlight-close" aria-label="Close">${icons.x}</button>
+               <div class="highlight-media" data-media data-fallback-letter=""></div>
+               <div class="highlight-meta">
+                 <p class="highlight-kicker" id="highlight-title">Highlights</p>
+                 <p class="highlight-name"></p>
+                 <p class="highlight-when"></p>
+               </div>
+               <button type="button" class="highlight-nav highlight-nav--prev" id="highlight-prev" aria-label="Previous">‹</button>
+               <button type="button" class="highlight-nav highlight-nav--next" id="highlight-next" aria-label="Next">›</button>
+             </div>
+             <p class="highlight-count" id="highlight-count"></p>`
+          : `<h3 id="highlight-title">Highlights</h3>
+             <p class="field-hint">No hosted events to show yet. Create one and it will appear here.</p>
+             <div class="modal-actions">
+               <button type="button" class="btn btn-outline" id="highlight-close">Close</button>
+             </div>`
+      }
+    </div>
+  `;
+  document.body.append(backdrop);
+  const card = backdrop.querySelector(".modal-card");
+  let restore = () => {};
+  function close() {
+    restore();
+    backdrop.remove();
+  }
+  restore = trapFocus(card, { onEscape: close });
+  backdrop.querySelector("#highlight-close").addEventListener("click", close);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+
+  if (!slides.length) {
+    backdrop.querySelector("#highlight-close").focus();
+    return;
+  }
+
+  const media = backdrop.querySelector(".highlight-media");
+  const nameEl = backdrop.querySelector(".highlight-name");
+  const whenEl = backdrop.querySelector(".highlight-when");
+  const countEl = backdrop.querySelector("#highlight-count");
+  const prevBtn = backdrop.querySelector("#highlight-prev");
+  const nextBtn = backdrop.querySelector("#highlight-next");
+
+  function paintSlide() {
+    const event = slides[index];
+    if (!event) return;
+    media.setAttribute("data-fallback-letter", fallbackInitial(event.title));
+    media.innerHTML = coverImageHTML({
+      src: event.cover?.startsWith?.("data:") ? event.cover : null,
+      seed: event.coverSeed || event.cover || event.id,
+      alt: `${event.title} cover image`,
+    });
+    nameEl.textContent = event.title;
+    whenEl.textContent = `${formatDate(event.date)} · ${formatTime(event.time)}`;
+    countEl.textContent = `${index + 1} / ${slides.length}`;
+    prevBtn.hidden = slides.length < 2;
+    nextBtn.hidden = slides.length < 2;
+  }
+
+  function step(delta) {
+    index = (index + delta + slides.length) % slides.length;
+    paintSlide();
+  }
+
+  prevBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    step(-1);
+  });
+  nextBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    step(1);
+  });
+  media.addEventListener("click", () => {
+    const event = slides[index];
+    close();
+    if (event?.id) onSelect?.(event.id);
+  });
+  nameEl.addEventListener("click", () => {
+    const event = slides[index];
+    close();
+    if (event?.id) onSelect?.(event.id);
+  });
+
+  function onNavKey(e) {
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      step(1);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      step(-1);
+    }
+  }
+  document.addEventListener("keydown", onNavKey);
+  const innerRestore = restore;
+  restore = () => {
+    document.removeEventListener("keydown", onNavKey);
+    innerRestore();
+  };
+
+  paintSlide();
+  backdrop.querySelector("#highlight-close").focus();
 }

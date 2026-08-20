@@ -19,14 +19,25 @@ registerRoute("profile", renderProfile);
 registerRoute("schedule", renderSchedule);
 registerRoute("notfound", (container) => {
   container.innerHTML = `
-    <div class="page" style="padding:40px var(--page-gutter);">
+    <div class="page page--status">
       ${emptyStateHTML({
         title: "Page not found",
         body: "That link doesn't match anything in Melaro.",
       })}
-      <button type="button" class="btn btn-primary" data-route="home" style="margin-top:16px;">Back to Home</button>
+      <button type="button" class="btn btn-primary" data-route="home">Back to Home</button>
     </div>
   `;
 });
+
+document.getElementById("app")?.addEventListener(
+  "error",
+  (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.hasAttribute("data-cover")) return;
+    img.closest("[data-media]")?.classList.add("media--fallback");
+    img.remove();
+  },
+  true
+);
 
 startRouter();

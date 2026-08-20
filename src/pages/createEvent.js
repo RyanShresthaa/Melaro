@@ -1,6 +1,6 @@
 import { getCategories, createEvent } from "../state.js";
 import { navigate } from "../router.js";
-import { escapeHTML, isPastDate, showToast, todayISO } from "../utils.js";
+import { escapeHTML, isPastDate, showToast, todayISO, setNamedError, clearNamedError } from "../utils.js";
 import { icons } from "../components.js";
 import { mountDatePicker, mountTimePicker } from "../pickers.js";
 
@@ -23,7 +23,7 @@ export function renderCreateEvent(container) {
             ${icons.camera}<span>Add Cover Page</span>
           </label>
         </div>
-        <p class="field-hint" id="cover-hint" style="margin-top:-12px;margin-bottom:16px;">JPG or PNG, up to 2MB. Optional — a placeholder image is used if skipped.</p>
+        <p class="field-hint" id="cover-hint">JPG or PNG, up to 2MB. Optional — a placeholder image is used if skipped.</p>
 
         <div class="field" id="field-title">
           <label for="title">Event Title:</label>
@@ -80,6 +80,7 @@ export function renderCreateEvent(container) {
             <label class="radio-option"><input type="radio" name="type" value="public" checked /> Public</label>
             <label class="radio-option"><input type="radio" name="type" value="private" /> Private</label>
           </div>
+          <p class="field-hint">Private events stay off Home and Search. People join from a shared link.</p>
         </div>
 
         <div class="field" id="field-category">
@@ -117,22 +118,22 @@ export function renderCreateEvent(container) {
   `;
 
   const form = container.querySelector("#create-event-form");
-  const datePicker = mountDatePicker(container.querySelector("#field-date"), {
+  const datePicker = mountDatePicker({
     input: container.querySelector("#date"),
     trigger: container.querySelector("#date-trigger"),
     panel: container.querySelector("#date-panel"),
     min: todayISO(),
-    onChange: () => clearError(container, "date"),
+    onChange: () => clearNamedError(container, "date"),
     onOpen: () => {
       closeCategoryMenu();
       timePicker.close();
     },
   });
-  const timePicker = mountTimePicker(container.querySelector("#field-time"), {
+  const timePicker = mountTimePicker({
     input: container.querySelector("#time"),
     trigger: container.querySelector("#time-trigger"),
     panel: container.querySelector("#time-panel"),
-    onChange: () => clearError(container, "time"),
+    onChange: () => clearNamedError(container, "time"),
     onOpen: () => {
       closeCategoryMenu();
       datePicker.close();
@@ -164,7 +165,7 @@ export function renderCreateEvent(container) {
     categoryValue.classList.remove("select-menu__value--placeholder");
     categoryOptions().forEach((el) => el.setAttribute("aria-selected", el === option));
     closeCategoryMenu();
-    clearError(container, "category");
+    clearNamedError(container, "category");
     categoryTrigger.focus();
   }
 
@@ -245,11 +246,14 @@ export function renderCreateEvent(container) {
   document.addEventListener("click", onDocClick);
   document.addEventListener("keydown", onDocKey);
 
+  let cleaned = false;
   function teardown() {
+    if (cleaned) return;
+    cleaned = true;
     document.removeEventListener("click", onDocClick);
     document.removeEventListener("keydown", onDocKey);
   }
-  window.addEventListener("hashchange", teardown, { once: true });
+  container.__melaroCleanup = teardown;
 
   const coverUpload = container.querySelector("#cover-upload");
   const coverInput = container.querySelector("#cover-input");
@@ -317,7 +321,7 @@ export function renderCreateEvent(container) {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const fieldNames = ["title", "description", "date", "time", "location", "category"];
-    fieldNames.forEach((name) => clearError(container, name));
+    fieldNames.forEach((name) => clearNamedError(container, name));
 
     const values = {
       title: form.title.value.trim(),
@@ -331,48 +335,47 @@ export function renderCreateEvent(container) {
 
     let hasError = false;
     if (values.title.length < 3) {
-      setError(container, "title", "Give your event a title (at least 3 characters).");
+      setNamedError(container, "title", "Give your event a title (at least 3 characters).");
       hasError = true;
     }
     if (values.description.length < 10) {
-      setError(container, "description", "Add a bit more description (at least 10 characters).");
+      setNamedError(container, "description", "Add a bit more description (at least 10 characters).");
       hasError = true;
     }
     if (!values.date) {
-      setError(container, "date", "Choose a date.");
+      setNamedError(container, "date", "Choose a date.");
       hasError = true;
     } else if (isPastDate(values.date)) {
-      setError(container, "date", "Date can't be in the past.");
+      setNamedError(container, "date", "Date can't be in the past.");
       hasError = true;
     }
     if (!values.time) {
-      setError(container, "time", "Choose a time.");
+      setNamedError(container, "time", "Choose a time.");
       hasError = true;
     }
     if (!values.location) {
-      setError(container, "location", "Add a location.");
+      setNamedError(container, "location", "Add a location.");
       hasError = true;
     }
     if (!values.category) {
-      setError(container, "category", "Select a category.");
+      setNamedError(container, "category", "Select a category.");
       hasError = true;
     }
-    if (hasError) return;
+    if (hasError) {
+      const firstError = container.querySelector(".has-error input, .has-error textarea, .has-error .select-menu__trigger");
+      firstError?.focus();
+      return;
+    }
 
+    const submitBtn = form.querySelector('[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
     teardown();
     const event = createEvent({ ...values, coverDataUrl });
+    if (!event) {
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
     showToast("Event created");
     navigate(`event/${event.id}`);
   });
-}
-
-function setError(container, name, message) {
-  const field = container.querySelector(`#field-${name}`);
-  field.classList.add("has-error");
-  field.querySelector(".field-error").textContent = message;
-}
-function clearError(container, name) {
-  const field = container.querySelector(`#field-${name}`);
-  field.classList.remove("has-error");
-  field.querySelector(".field-error").textContent = "";
 }

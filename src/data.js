@@ -1,3 +1,5 @@
+import { toLocalISODate } from "./utils.js";
+
 export const CATEGORIES = [
   "Sports",
   "Music",
@@ -15,8 +17,7 @@ export const DEMO_USER = {
   fullName: "Tanchho Sherpa",
   email: "tanchho@gmail.com",
   password: "demo1234",
-  followers: 201,
-  following: 128,
+  followingUsernames: ["arc_ktm", "sonepa_yoga", "ktm_soundwave"],
   preferences: ["Sports", "Music", "Outdoors"],
   bio: "Run club regular. Always down for a concert.",
 };
@@ -28,8 +29,7 @@ export const SEED_USERS = [
     fullName: "Artha Run Club",
     email: "hello@arcktm.com",
     password: "demo1234",
-    followers: 1840,
-    following: 12,
+    followingUsernames: ["sonepa_yoga"],
     preferences: ["Sports", "Fitness", "Outdoors"],
     bio: "Kathmandu's community run club. Every Saturday, all paces welcome.",
   },
@@ -38,8 +38,7 @@ export const SEED_USERS = [
     fullName: "Sanepa Yoga Collective",
     email: "studio@sonepayoga.com",
     password: "demo1234",
-    followers: 612,
-    following: 40,
+    followingUsernames: ["arc_ktm", "tanchho_25"],
     preferences: ["Fitness", "Culture"],
     bio: "Slow mornings, strong bodies. Sanepa, Lalitpur.",
   },
@@ -48,8 +47,7 @@ export const SEED_USERS = [
     fullName: "KTM Soundwave",
     email: "bookings@soundwave.np",
     password: "demo1234",
-    followers: 3450,
-    following: 88,
+    followingUsernames: ["arc_ktm"],
     preferences: ["Music", "Culture"],
     bio: "Independent live music promoter based in Thamel.",
   },
@@ -58,10 +56,7 @@ export const SEED_USERS = [
 function daysFromNow(n) {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return toLocalISODate(d);
 }
 
 export const SEED_EVENTS = [
@@ -79,7 +74,7 @@ export const SEED_EVENTS = [
     cover: "dashain-run",
     trending: false,
     attendeeSample: ["tanchho_25"],
-    attendeeCount: 34,
+    attendeeCount: 2,
   },
   {
     id: "evt_cafe_crawl",
@@ -95,7 +90,7 @@ export const SEED_EVENTS = [
     cover: "cafe-crawl",
     trending: false,
     attendeeSample: ["arc_ktm"],
-    attendeeCount: 8,
+    attendeeCount: 2,
   },
   {
     id: "evt_arc52",
@@ -111,7 +106,7 @@ export const SEED_EVENTS = [
     cover: "arc52-run",
     trending: true,
     attendeeSample: ["tanchho_25", "sonepa_yoga"],
-    attendeeCount: 47,
+    attendeeCount: 3,
   },
   {
     id: "evt_soundwave_live",
@@ -127,7 +122,7 @@ export const SEED_EVENTS = [
     cover: "rooftop-live",
     trending: true,
     attendeeSample: ["tanchho_25"],
-    attendeeCount: 132,
+    attendeeCount: 2,
   },
   {
     id: "evt_yoga_sunrise",
@@ -143,7 +138,7 @@ export const SEED_EVENTS = [
     cover: "sunrise-yoga",
     trending: true,
     attendeeSample: [],
-    attendeeCount: 19,
+    attendeeCount: 1,
   },
   {
     id: "evt_pottery_pop",
@@ -159,7 +154,7 @@ export const SEED_EVENTS = [
     cover: "pottery-workshop",
     trending: false,
     attendeeSample: [],
-    attendeeCount: 14,
+    attendeeCount: 1,
   },
   {
     id: "evt_food_crawl",
@@ -175,7 +170,7 @@ export const SEED_EVENTS = [
     cover: "ason-food",
     trending: false,
     attendeeSample: [],
-    attendeeCount: 26,
+    attendeeCount: 1,
   },
   {
     id: "evt_founders_mixer",
@@ -191,7 +186,7 @@ export const SEED_EVENTS = [
     cover: "founders-mixer",
     trending: false,
     attendeeSample: [],
-    attendeeCount: 38,
+    attendeeCount: 1,
   },
   {
     id: "evt_lan_party",
@@ -207,7 +202,7 @@ export const SEED_EVENTS = [
     cover: "lan-party",
     trending: false,
     attendeeSample: [],
-    attendeeCount: 61,
+    attendeeCount: 1,
   },
   {
     id: "evt_hike_shivapuri",
@@ -223,7 +218,7 @@ export const SEED_EVENTS = [
     cover: "shivapuri-hike",
     trending: false,
     attendeeSample: [],
-    attendeeCount: 22,
+    attendeeCount: 1,
   },
   {
     id: "evt_newari_walk",
@@ -239,12 +234,13 @@ export const SEED_EVENTS = [
     cover: "newari-walk",
     trending: false,
     attendeeSample: [],
-    attendeeCount: 17,
+    attendeeCount: 1,
   },
 ];
 
 export const SEED_JOINS = [
   { eventId: "evt_arc52", username: "sonepa_yoga" },
+  { eventId: "evt_arc52", username: "tanchho_25" },
 ];
 
 export const SEED_MESSAGES = {
@@ -267,3 +263,30 @@ function daysAgoISO(n) {
   d.setHours(d.getHours() - n * 24);
   return d.toISOString();
 }
+
+export const SEED_NOTIFICATIONS = [
+  {
+    id: "n1",
+    username: "tanchho_25",
+    text: "Sanepa Yoga Collective started following you.",
+    ts: daysAgoISO(2),
+    read: false,
+    route: "profile/sonepa_yoga",
+  },
+  {
+    id: "n2",
+    username: "tanchho_25",
+    text: "ARC - 52 is this Saturday at International Club, Sanepa.",
+    ts: daysAgoISO(0.3),
+    read: false,
+    route: "event/evt_arc52",
+  },
+  {
+    id: "n3",
+    username: "arc_ktm",
+    text: "Tanchho Sherpa joined ARC - 52: Saturday Long Run.",
+    ts: daysAgoISO(5),
+    read: true,
+    route: "event/evt_arc52",
+  },
+];
